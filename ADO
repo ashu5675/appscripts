@@ -8,6 +8,7 @@ function onOpen() {
     .addItem('createADO','createADO')
     .addItem('publishRow','publishRow')
     .addItem('getADOdetails','getADOdetails')
+    .addItem('getQuery','getQuery')
     .addToUi();
 }
 
@@ -65,7 +66,7 @@ function getADOdetails(){
     },
     "contentType": "application/json"
   }
-Logger.log(options);
+  Logger.log(options);
   var response = UrlFetchApp.fetch(url, options);
   var data = JSON.parse(response.getContentText());
   
@@ -79,6 +80,7 @@ Logger.log(options);
     } catch(error) {
       Logger.log(error);
     }
+  createLink();
 }
 
 function createADO(){
@@ -126,9 +128,8 @@ function createADO(){
   activeSheet.getRange(activeCell.getRow(), activeCell.getColumn()+2,1,1).setValue(output.fields['System.State']);
   activeSheet.getRange(activeCell.getRow(), activeCell.getColumn()+3,1,1).setValue(output.fields['System.IterationPath']);
 
+  createLink();
 }
-
-
 
 function publishRow(){
   var token = PropertiesService.getUserProperties().getProperty('token');
@@ -179,6 +180,7 @@ function publishRow(){
   var response = UrlFetchApp.fetch("https://dev.azure.com/o9git/CoreDev/_apis/wit/workitems/"+id+"?api-version=6.0", requestOptions);
   Logger.log(response)
   var output = JSON.parse(response.getContentText());
+  createLink();
   
 }
 
@@ -232,3 +234,110 @@ function publish(i){
   var output = JSON.parse(response.getContentText());
   
 }
+
+function createLink(){
+  var activeSheet = SpreadsheetApp.getActiveSheet();
+  var activeCell = SpreadsheetApp.getActiveSheet().getActiveCell();
+  Logger.log(activeSheet.getRange(activeCell.getRow(),1,1,1).getRichTextValue());
+  Logger.log(activeSheet.getRange(activeCell.getRow(),1,1,1).getDisplayValue());
+  if (activeSheet.getRange(activeCell.getRow(),1,1,1).getRichTextValue() == null) {
+    var range = activeSheet.getRange(activeCell.getRow(),1,1,1);
+    var richValue = SpreadsheetApp.newRichTextValue()
+      .setText(activeSheet.getRange(activeCell.getRow(),1,1,1).getDisplayValue())
+      .setLinkUrl("https://o9git.visualstudio.com/CoreDev/_workitems/edit/"+activeSheet.getRange(activeCell.getRow(),1,1,1).getDisplayValue())
+      .build();
+    range.setRichTextValue(richValue);
+    }
+  else {
+    Logger.log( "Remove existing link first." );
+    }
+}
+
+
+function getQuery() {
+  var ui = SpreadsheetApp.getUi();
+  urlname = ui.prompt('Enter your query ID');
+  var token = PropertiesService.getUserProperties().getProperty('token');
+  var url = "https://dev.azure.com/o9git/CoreDev/Advanced Analytics/_apis/wit/wiql/"+urlname.getResponseText()+"?api-version=7.0";
+  var options = {
+    "method": "get",
+    "headers": {
+      "Authorization": "Basic "+token,
+      "Accept": "application/json",
+    },
+    "contentType": "application/json"
+  }
+  var response = UrlFetchApp.fetch(url, options);
+  var data = JSON.parse(response.getContentText());
+  var activeSheet = SpreadsheetApp.getActiveSheet();
+  for(var i = 0; i < data.workItems.length; i++){
+    var id = data.workItems[i].id;
+    var url = "https://dev.azure.com/o9git/CoreDev/_apis/wit/workitems/"+id+"?api-version=6.0";
+    var options = {
+      "method": "get",
+      "headers": {
+        "Authorization": "Basic "+token,
+        "Accept": "application/json",
+      },
+      "contentType": "application/json"
+    }
+    var response = UrlFetchApp.fetch(url, options);
+    var item = JSON.parse(response.getContentText());
+    try {
+      var State = item.fields['System.State'];
+      var WorkItemType = item.fields['System.WorkItemType'];
+      var AssignedTo = item.fields['System.AssignedTo']['displayName'];
+      var IterationPath = item.fields['System.IterationPath'];
+      var Title = item.fields['System.Title'];
+      var richValue = SpreadsheetApp.newRichTextValue()
+        .setText(id)
+        .setLinkUrl("https://o9git.visualstudio.com/CoreDev/_workitems/edit/"+id)
+        .build();
+      var range = activeSheet.getRange(i+1,1,1,1);
+      Logger.log(id)
+      Logger.log(range.getRow())
+      Logger.log(range.getColumn())
+      range.setRichTextValue(richValue)
+      activeSheet.getRange(range.getRow(), range.getColumn()+1,1,5).setValues([[WorkItemType, Title, AssignedTo, State, IterationPath]]);
+      } catch(error) {
+        Logger.log(error);
+      }
+    }
+}
+
+/*
+function getADO(ADOlink,ADOid){
+
+//Modify for Daily Sync
+  var url = ADOlink
+  var options = {
+    "method": "get",
+    "headers": {
+      "Authorization": "Basic aGVsbG86N3hhbXVlbGF3bjV3cGNjMnltaWU2NXBmcW12emtneHNrd2tkc3poa3J1ZGl3NmVrY3R4cQ==",
+      "Accept": "application/json",
+    },
+    "contentType": "application/json"
+  }
+
+  var response = UrlFetchApp.fetch(url, options);
+  var data = JSON.parse(response.getContentText());
+  try {
+    var ID = data.id;
+    var State = data.fields['System.State'];
+    var WorkItemType = data.fields['System.WorkItemType'];
+    var AssignedTo = data.fields['System.AssignedTo']['displayName'];
+    var IterationPath = data.fields['System.IterationPath'];
+    var Title = data.fields['System.Title'];
+
+
+    var rng = SpreadsheetApp.getActiveSheet().getRange('A:A');
+    var textfinder = rng.createTextFinder(ID);
+    if (textfinder.findAll().length == 0) {
+      var activeSheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
+      activeSheet.appendRow([ID, WorkItemType, Title, AssignedTo, State, IterationPath]);
+     }
+    } catch(error) {
+      Logger.log(error);
+    }
+}
+*/
