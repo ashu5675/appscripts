@@ -1,6 +1,7 @@
 function onOpen() {
   let ui = SpreadsheetApp.getUi();
   ui.createMenu('AzureDevOps')
+    .addItem('ResetAccessToken', 'ResetAccessToken')
     .addItem('AddAccessToken', 'AddAccessToken')
     .addItem('AddAreaPath', 'AddAreaPath')
     .addItem('publishBulk', 'publishBulk')
@@ -10,17 +11,17 @@ function onOpen() {
     .addToUi();
 }
 
-
+function ResetAccessToken() {
+  PropertiesService.getUserProperties().deleteAllProperties();
+}
 
 function AddAccessToken() {
   var ui = SpreadsheetApp.getUi();
-  doc_name = ui.prompt('Enter your access Token from ADO');
-  var accessID = Utilities.base64Encode("hello:"+doc_name.getResponseText());
-  doc_name = ui.prompt('Enter your o9 email ID');
-  var email = doc_name.getResponseText();
-  Logger.log(email)
+  doc = ui.prompt('Enter your access Token from ADO');
+  Logger.log(doc.getResponseText())
+  var accessID = Utilities.base64Encode("hello:"+doc.getResponseText());
   Logger.log(accessID)
-  PropertiesService.getUserProperties().setProperty(email, accessID);
+  PropertiesService.getUserProperties().setProperty('token', accessID);
 }
 
 function AddAreaPath() {
@@ -32,27 +33,26 @@ function AddAreaPath() {
 }
 
 function atEdit(e) {
-  var email = Session.getActiveUser().getEmail();
-  var token = PropertiesService.getUserProperties().getProperty(email);
-  Logger.log(email)
+  var token = PropertiesService.getUserProperties().getProperty('token');
   Logger.log(token)
   if (e.range.getColumn() == 1){
-    getADOdetails(token)
+    getADOdetails()
   }
   if (e.range.getColumn() == 3){
-    createADO(token)
+    createADO()
   }
 }
 
 function publishBulk(){
-  var token = PropertiesService.getUserProperties().getProperty(email);
+  var token = PropertiesService.getUserProperties().getProperty('token');
   var lastRow = SpreadsheetApp.getActiveSheet().getLastRow();
   for(var i = lastRow; i >=6; i--){
-    publish(i, token)
+    publish(i)
   }
 }
 
-function getADOdetails(token){
+function getADOdetails(){
+  var token = PropertiesService.getUserProperties().getProperty('token');
   var activeSheet = SpreadsheetApp.getActiveSheet();
   var activeCell = SpreadsheetApp.getActiveSheet().getActiveCell();
   var id = activeCell.getDisplayValue();
@@ -81,11 +81,12 @@ Logger.log(options);
     }
 }
 
-function createADO(token){
+function createADO(){
   var activeSheet = SpreadsheetApp.getActiveSheet();
   var activeCell = SpreadsheetApp.getActiveSheet().getActiveCell();
   var sheetname = SpreadsheetApp.getActiveSpreadsheet().getName();
   var areaPath = PropertiesService.getDocumentProperties().getProperty(sheetname);
+  var token = PropertiesService.getUserProperties().getProperty('token');
   var raw = JSON.stringify([
     {
       "op": "add",
@@ -130,8 +131,7 @@ function createADO(token){
 
 
 function publishRow(){
-  var email = Session.getActiveUser().getEmail();
-  var token = PropertiesService.getUserProperties().getProperty(email);
+  var token = PropertiesService.getUserProperties().getProperty('token');
   var activeSheet = SpreadsheetApp.getActiveSheet();
   var activeCell = SpreadsheetApp.getActiveSheet().getActiveCell();
   
@@ -184,8 +184,7 @@ function publishRow(){
 
 function publish(i){
   var activeSheet = SpreadsheetApp.getActiveSheet();
-  var email = Session.getActiveUser().getEmail();
-  var token = PropertiesService.getUserProperties().getProperty(email);
+  var token = PropertiesService.getUserProperties().getProperty('token');
   var raw = JSON.stringify([
     {
       "op": "add",
@@ -233,63 +232,3 @@ function publish(i){
   var output = JSON.parse(response.getContentText());
   
 }
-
-
-
-/*
-function SyncADO() {
-  var url = 'https://dev.azure.com/o9git/CoreDev/Advanced Analytics/_apis/wit/wiql/487742f0-c8c3-4360-9ece-6c0ed160d80d?api-version=6.0';
-  var options = {
-    "method": "get",
-    "headers": {
-      "Authorization": "Basic aGVsbG86N3hhbXVlbGF3bjV3cGNjMnltaWU2NXBmcW12emtneHNrd2tkc3poa3J1ZGl3NmVrY3R4cQ==",
-      "Accept": "application/json",
-    },
-    "contentType": "application/json"
-  }
-  var response = UrlFetchApp.fetch(url, options);
-  var data = JSON.parse(response.getContentText());
-  Logger.log(data.workItems.length);
-  for(var i = data.workItems.length - 1; i >=0; i--){
-    var ADOlink = data.workItems[i].url;
-    var ADOid = data.workItems[i].id;
-    getADO(ADOlink,ADOid)
-  }
-}
-
-
-function getADO(ADOlink,ADOid){
-
-//Modify for Daily Sync
-  var url = ADOlink
-  var options = {
-    "method": "get",
-    "headers": {
-      "Authorization": "Basic aGVsbG86N3hhbXVlbGF3bjV3cGNjMnltaWU2NXBmcW12emtneHNrd2tkc3poa3J1ZGl3NmVrY3R4cQ==",
-      "Accept": "application/json",
-    },
-    "contentType": "application/json"
-  }
-
-  var response = UrlFetchApp.fetch(url, options);
-  var data = JSON.parse(response.getContentText());
-  try {
-    var ID = data.id;
-    var State = data.fields['System.State'];
-    var WorkItemType = data.fields['System.WorkItemType'];
-    var AssignedTo = data.fields['System.AssignedTo']['displayName'];
-    var IterationPath = data.fields['System.IterationPath'];
-    var Title = data.fields['System.Title'];
-
-
-    var rng = SpreadsheetApp.getActiveSheet().getRange('A:A');
-    var textfinder = rng.createTextFinder(ID);
-    if (textfinder.findAll().length == 0) {
-      var activeSheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
-      activeSheet.appendRow([ID, WorkItemType, Title, AssignedTo, State, IterationPath]);
-     }
-    } catch(error) {
-      Logger.log(error);
-    }
-}
-*/
